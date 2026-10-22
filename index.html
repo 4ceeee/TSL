@@ -509,7 +509,8 @@ footer .wrap{padding-block:26px;font-size:.88rem;display:flex;gap:10px 28px;flex
       <label for="f-name">Your name<input id="f-name" name="name" autocomplete="name" required></label>
       <label for="f-email">Email<input id="f-email" name="email" type="email" autocomplete="email" required></label>
       <label for="f-task">The task <small>What is it, who does it, and how often?</small><textarea id="f-task" name="task" required placeholder="Every Monday someone copies three exports into one sheet to build the weekly report..."></textarea></label>
-      <button class="btn green" type="submit">Send it</button>
+      <input type="checkbox" name="botcheck" id="f-bot" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+      <button class="btn green" type="submit" id="send">Send it</button>
       <p class="status" id="status" role="status"></p>
     </form>
   </div>
@@ -527,13 +528,24 @@ footer .wrap{padding-block:26px;font-size:.88rem;display:flex;gap:10px 28px;flex
     try{navigator.clipboard.writeText(addr).then(done,fallback)}catch(e){fallback()}
   });
   var form=document.getElementById('ask'),status=document.getElementById('status');
+  var send=document.getElementById('send'),busy=false;
   form.addEventListener('submit',function(e){
     e.preventDefault();
+    if(busy)return;
     var n=form.name.value.trim(),em=form.email.value.trim(),t=form.task.value.trim();
     if(!n||!em||!t||!/^\S+@\S+\.\S+$/.test(em)){status.textContent='Please add your name, a valid email and the task.';return}
-    var body='Name: '+n+'\nEmail: '+em+'\n\nThe task:\n'+t;
-    location.href='mailto:'+addr+'?subject='+encodeURIComponent('Spreadsheet task from '+n)+'&body='+encodeURIComponent(body);
-    status.textContent='Your email app should open with this message ready to send. If it didn\'t, email '+addr+' directly.';
+    if(form.botcheck.checked)return;
+    busy=true;send.textContent='Sending…';send.disabled=true;status.textContent='';
+    var done=function(ok){
+      busy=false;send.disabled=false;send.textContent='Send it';
+      if(ok){form.reset();status.textContent='Sent. Arc will reply to '+em+' by email.'}
+      else{status.textContent='That didn\'t go through. Please email '+addr+' directly, or try again.'}
+    };
+    try{
+      fetch('https://api.web3forms.com/submit',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},
+        body:JSON.stringify({access_key:'b272c2c4-05a4-47a2-be69-f477781173e5',subject:'Spreadsheet task from '+n,from_name:'tsl.vercel.app',name:n,email:em,replyto:em,message:t})})
+      .then(function(r){return r.json()}).then(function(d){done(!!(d&&d.success))},function(){done(false)});
+    }catch(err){done(false)}
   });
 })();
 </script>
